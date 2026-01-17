@@ -1,69 +1,57 @@
-# Cloud Native Web Application
-CSYE 6225
+# Cloud-Native Web Application Platform
 
-### Assignment 1
-- Start Spring Boot application  
+A production-ready, cloud-native web application built with Spring Boot and deployed on Google Cloud Platform (GCP). This project demonstrates enterprise-grade architecture with automated CI/CD pipelines, infrastructure as code, autoscaling, and comprehensive observability.
 
+## 🏗️ Architecture Overview
 
-- GET request with no payload, no query params
-```
+This application implements a scalable, highly available cloud-native architecture including:
+
+- **RESTful API** with Spring Boot backend
+- **PostgreSQL** database with automated bootstrapping
+- **Custom Machine Images** built with Packer
+- **Infrastructure as Code** using Terraform
+- **CI/CD Pipeline** with GitHub Actions
+- **Auto-scaling** with Google Compute Engine Instance Groups
+- **Load Balancing** for high availability
+- **Serverless Functions** for event-driven workflows
+- **Cloud Observability** with structured logging and monitoring
+- **Domain Management** with Cloud DNS
+
+## ✨ Features
+
+### Health Monitoring & Database Connectivity
+- Health check endpoint (`/healthz`) with database connectivity validation
+- Optimized connection pooling with HikariCP (5-second timeout for rapid failure detection)
+- Service returns appropriate HTTP status codes:
+  - `200 OK` - Application and database healthy
+  - `400 Bad Request` - Invalid query parameters or payload
+  - `405 Method Not Allowed` - Unsupported HTTP methods
+  - `503 Service Unavailable` - Database connectivity issues
+
+**Testing Health Endpoint:**
+```bash
+# Valid health check
 curl -vvvv http://localhost:8081/healthz
-```  
-[expected: 200 status ok]  
 
-- GET request with query params
-```
+# Invalid request with query params (returns 400)
 curl -vvvv http://localhost:8081/healthz?key=value
-```  
-[expected: 400 bad request]  
 
-- GET request with payload
-```
+# Invalid request with payload (returns 400)
 curl -vvvv -X GET http://localhost:8081/healthz --data-binary '{"key":"value"}' -H "Content-Type: application/json"
-```  
-[expected: 400 bad request]
 
-- PUT/POST/PATCH/DELETE request
-```
+# Unsupported method (returns 405)
 curl -vvvv -XPUT http://localhost:8081/healthz
-```  
-[expected: 405 method not allowed]  
-
-- Stop Postgresql, make GET request
 ```
-net stop postgresql-x64-16
-curl -vvvv http://localhost:8081/healthz
-```
-[expected: 503 service unavailable]  
 
-- Start Postgresql, make GET request
-```
-net start postgresql-x64-16
-curl -vvvv http://localhost:8081/healthz
-```
-[expected: 200 status ok]
+### User Management API
 
-Notes:
-- Decreased the time it takes to recognize a non-operational database to 5 secs via HikariCP  
+Complete user lifecycle management with secure authentication:
 
-### Assignment 2  
+#### Create User Account
+**Endpoint:** `POST /v1/user`
 
-- Bootstrapping the Database  
-
--- Automated Database Setup: Leveraging the **CommandLineRunner** interface, our application is equipped to automatically establish a database along with a designated user endowed with the necessary privileges. This setup ensures that, in the event of an unexpected deletion, the database is seamlessly regenerated without manual intervention.  
-
--- Schema Management: Our use of JPA entity classes, in combination with Spring Data JPA repositories, facilitates the auto-generation of database tables. This negates the need for manual SQL query execution to restore tables should they be dropped.  
-
-- REST APIs  
-
--- POST request to create user  
-
-Endpoint:
-```
-http://localhost:8081/v1/user
-```
-Request Body:
-```
+**Request:**
+```json
 {
   "first_name": "Jane",
   "last_name": "Doe",
@@ -71,9 +59,9 @@ Request Body:
   "username": "jane.doe@example.com"
 }
 ```
-Responses:
-```
-- 201 created
+
+**Response (201 Created):**
+```json
 {
   "id": "d290f1ee-6c54-4b01-90e6-d701748f0851",
   "first_name": "Jane",
@@ -82,202 +70,345 @@ Responses:
   "account_created": "2016-08-29T09:12:33.001Z",
   "account_updated": "2016-08-29T09:12:33.001Z"
 }
-- 400 bad request 
-```
--- GET request to fetch user details  
-(basic authentication token needed to make API call) 
-
-Endpoint:
-```
-http://localhost:8081/v1/user/self
-```  
-Responses:
-```
-- 200 status ok
-{
-  "id": "d290f1ee-6c54-4b01-90e6-d701748f0851",
-  "first_name": "Jane",
-  "last_name": "Doe",
-  "username": "jane.doe@example.com",
-  "account_created": "2016-08-29T09:12:33.001Z",
-  "account_updated": "2016-08-29T09:12:33.001Z"
-}
-- 401 unauthorized
-```
--- PUT request to update user details  
-  (basic authentication token needed to make API call)
-
-Endpoint:
-```
-http://localhost:8081/v1/user/self
-{
-  "first_name": "Jane",
-  "last_name": "Doe",
-  "password": "skdjfhskdfjhg"
-}
-```  
-Responses:
-```
-- 204 no content
-- 400 bad request
-- 401 unauthorized
 ```
 
-- GitHub actions CI Pipeline  
+#### Get User Details
+**Endpoint:** `GET /v1/user/self`
+- Requires Basic Authentication
+- Returns user profile information
+- **Responses:** `200 OK`, `401 Unauthorized`
 
--- Wrote a GitHub Actions workflow in yml to run simple check (compile code) for each pull request raised.   
--- A pull request can only be merged if the workflow executes successfully.  
+#### Update User Profile
+**Endpoint:** `PUT /v1/user/self`
+- Requires Basic Authentication
+- Allows updates to first name, last name, and password
+- **Responses:** `204 No Content`, `400 Bad Request`, `401 Unauthorized`
 
+### Email Verification System
 
-- Bash script to demo assignment-2 in a centos vm  
+Email verification workflow leveraging serverless architecture ([serverless repository](https://github.com/eashanroy7/serverless)):
 
--- The script installs necessary packages like unzip, JDK, maven, postgresql in the vm      
+**Architecture:**
+1. User registration triggers a Pub/Sub message
+2. Cloud Function receives the event and generates a time-limited verification token
+3. Verification email sent via Mailgun API with unique link
+4. User clicks link → redirects to `/verify` endpoint
+5. Token validated (2-minute expiration window)
+6. User account marked as verified
 
--- Unzips the project folder, creates directory 'resources' under webapp/src/main, and places application.properties file inside it    
+**Security Features:**
+- Time-bound verification tokens (2-minute expiry)
+- All API calls require verified email status
+- Token stored securely in Cloud SQL database
 
--- Initializes and starts PostgreSQL  
+### Database Management
 
--- Configures PostgreSQL  
+**Automated Bootstrapping:**
+- Utilizes Spring Boot's `CommandLineRunner` interface for automatic database initialization
+- Self-healing: Database recreated automatically if deleted
+- JPA entity classes with Spring Data JPA for automatic schema generation
+- No manual SQL execution required for table restoration
 
--- Configures md5 authentication in pg_hba.conf  
+**Database Architecture:**
+- Development: Local PostgreSQL installation
+- Production: Google Cloud SQL (PostgreSQL 14)
+- Private Services Access for secure connectivity
+- Network isolation - Cloud SQL not exposed to internet
 
--- Makes maven point to JDK 17 instead of the default mapping to JDK 11  
+## 🚀 Infrastructure & Deployment
 
--- Builds and runs the Spring Boot application  
+### Custom Machine Images (Packer)
 
-### Assignment 3
+Automated machine image creation with comprehensive provisioning:
 
-- Added Integration tests  
+**Image Components:**
+- Base OS updates and security patches
+- Java Development Kit (JDK 17)
+- Maven build tool
+- Application artifacts deployed to `/opt/webapp`
+- Systemd service configuration for automatic startup
+- Google Cloud Ops Agent for logging and monitoring
+- Dedicated non-login user (`csye6225`) for security
 
--- Test 1 - Created an account, and using the GET call, validated account exists  
--- Test 2 - Updated the account and using the GET call, validated the account was updated 
+**Packer Provisioning Pipeline:**
+1. System updates and dependency installation
+2. Copy compiled application (.jar) to image
+3. Configure application directory structure with proper ownership
+4. Install and configure systemd service
+5. Set up logging infrastructure (`/var/log/webapp/webapp.log`)
+6. Install and configure Ops Agent with custom config
+7. Enable and start all required services
 
+### Infrastructure as Code (Terraform)
 
-- Added GitHub secrets to encrypt sensitive information in CI workflow  
+Comprehensive cloud infrastructure managed entirely through Terraform ([tf-gcp-infra repository](https://github.com/eashanroy7/tf-gcp-infra)):
 
--- Created secrets in organization repo  
--- Enabled 'Run workflows from fork pull requests' and 'Send secrets and variables to workflows from fork pull requests' in order to give access of secrets to fork repo  
--- Accessed the secrets in workflow file through ${{ secrets.VARIABLE_NAME }}  
+**Network Infrastructure:**
+- Custom VPC with public and private subnets
+- Public subnet for web application tier
+- Private subnet for database tier
+- Internet Gateway with explicit routes
+- Firewall rules for controlled traffic (port 8081)
 
-- Handled via Terraform (repo: 'tf-gcp-infra')  
+**Compute Resources:**
+- Google Compute Engine instances from custom images
+- Instance Templates for autoscaling
+- Managed Instance Groups with health checks
+- Application Load Balancer for traffic distribution
+- Autoscaling policies for dynamic resource allocation
 
--- Provisioned VPC, subnets (public subnet for 'webapp', private subnet for 'database')  
--- Provisioned route explicitly to 0.0.0.0/0 with next hop to Internet Gateway and attached to VPC  
+**Database Infrastructure:**
+- Cloud SQL PostgreSQL 14 instance
+- Private Services Access configuration
+- Database and user provisioning
+- Secure credentials management
 
+**Startup Scripts:**
+- Dynamic application.properties generation with Cloud SQL credentials
+- Automatic service restart on instance launch
 
-### Assignment 4  
+**DNS Configuration:**
+- Cloud DNS public zone management
+- A record configuration pointing to load balancer IP
+- Automated record updates on infrastructure changes
 
-- Built custom Packer image via GitHub Actions workflow that will get triggered when PR gets merged into organization repo's main branch    
+### CI/CD Pipeline (GitHub Actions)
 
+Multi-stage continuous integration and deployment workflows:
 
-- Packer image had the following steps:  
+**Pull Request Validation:**
+- Code compilation checks
+- Packer template formatting (`packer fmt`)
+- Packer template validation
+- Integration test execution
+- Branch protection rules enforced
 
--- Shell provisioner to update OS, install Postgres database locally inside Packer image, install dependencies   
--- File provisioner to copy build file (.jar) generated by GitHub Actions workflow to Packer image  
--- Shell provisioner to move jar file to new directory /opt/webapp, create no-login user (csye6225) and group, make this user the owner of all the web application related artifacts  
--- File provisioner to copy systemd service file (to turn our web application into a service that can be started/stopped via systemctl commands) to Packer image  
--- Shell provisioner to move systemd service file to /etc/systemd/system/webapp.service, and start the service
+**Integration Tests:**
+- Test Suite 1: Account creation and retrieval validation
+- Test Suite 2: Account update and verification
+- All tests run in isolated environment
 
+**Build Pipeline:**
+- Maven build with dependency caching
+- JAR artifact generation
+- Artifact upload to workflow
 
-- Created Service Account in GCP for GitHub actions to deploy Packer image [added this service account credentials as GitHub organization repository secret, and used them in the github actions workflow so that Github actions can use it to deploy packer image to GCP]
+**Packer Image Creation (on merge to main):**
+- Triggered automatically on PR merge
+- Uses GCP Service Account credentials (stored as GitHub secrets)
+- Validates Packer templates
+- Builds custom machine image
+- Deploys to Google Cloud Platform
 
+**Rolling Update Deployment:**
+- Creates new Instance Template with latest machine image
+- Updates Managed Instance Group configuration
+- Initiates rolling update (zero-downtime deployment)
+- Monitors instance refresh completion
+- Workflow reflects deployment status
 
-- Added new GitHub Actions workflow for status check (gets triggered on raising a PR from fork/feature to org/main)  
+**Security:**
+- GitHub organization secrets for sensitive data
+- Fork repository secret access enabled
+- Encrypted environment variables
 
--- If packer fmt fails, workflow fails  
--- If packer validate fails, workflow fails  
+### Domain Configuration
 
+**Custom Domain Setup:**
+- Registered domain: `eashanroy.me` (Namecheap)
+- Cloud DNS public zone configuration
+- Custom nameserver delegation to GCP
+- DNS propagation verification:
+  ```bash
+  dig NS eashanroy.me
+  ```
 
-- Handled via Terraform (repo: 'tf-gcp-infra')  
+## 📊 Observability & Monitoring
 
--- Provisioned Google Compute Engine instance (VM) from custom Packer image, with VM startup script that just restarts the web application service file  
--- Set up firewall rules for VPC/Subnet to allow traffic from the internet to the application port [8081]
+### Structured Logging
 
-### Assignment 5  
+**Implementation:**
+- SLF4J with Logback for logging framework
+- JSON structured log format
+- Custom Logback configuration
+- Centralized log storage: `/var/log/webapp/webapp.log`
 
-- Updated Packer template with following steps:  
+**Cloud Integration:**
+- Google Cloud Ops Agent installed on all instances
+- Custom Ops Agent configuration (`/etc/google-cloud-ops-agent/config.yaml`)
+- Real-time log streaming to Google Cloud Logging
+- Log Explorer integration for searching and analysis
 
--- Shell provisioner to create empty application.properties file, make no-login user 'csye6225' the owner (this empty file will be populated with cloud DB details via VM startup script once provisioned via Terraform)  
--- Removed shell provisioner to install Postgres DB locally inside Packer image (since local DB will be replaced with Google CloudSQL provisioned via Terraform)
+**Service Account Permissions:**
+- `Logging Admin` - Full logging operations
+- `Monitoring Metric Writer` - Custom metrics publishing
 
+### Monitoring
 
-- Handled via Terraform (repo: 'tf-gcp-infra')  
+- VM instance health checks
+- Application performance metrics
+- Database connectivity monitoring
+- Autoscaling metrics and triggers
 
--- Setup Private Services access in VPC to access Google CloudSQL instance  
--- Provisioned CloudSQL instance (Postgres 14), CloudSQL Database, CloudSQL Database User  
--- Provisioned Google Compute Engine instance (VM) from custom Packer image, with VM startup script that passes the database configuration such as username, password, and hostname to the web application and starts it  
--- Added Network security (CloudSQL instance should not be accessible from the internet, can only be accessed by the compute engine instance running the web application.)  
+## 🛠️ Technology Stack
 
-### Assignment 6  
+### Backend
+- **Framework:** Spring Boot
+- **Language:** Java 17
+- **Build Tool:** Maven
+- **ORM:** Spring Data JPA
+- **Database:** PostgreSQL 14
+- **Connection Pool:** HikariCP
 
-- Registered domain [eashanroy.me] with Namecheap  
+### Infrastructure
+- **Cloud Provider:** Google Cloud Platform (GCP)
+- **IaC:** Terraform
+- **Image Building:** Packer
+- **CI/CD:** GitHub Actions
+- **Compute:** Google Compute Engine
+- **Database:** Google Cloud SQL
+- **Load Balancing:** GCP Application Load Balancer
+- **Serverless:** Google Cloud Functions
+- **Messaging:** Google Pub/Sub
+- **DNS:** Google Cloud DNS
+- **Logging:** Google Cloud Logging
+- **Monitoring:** Google Cloud Monitoring
 
+### Serverless
+- **Runtime:** Java
+- **Event Source:** Google Pub/Sub
+- **Email Service:** Mailgun API
+- **Database:** Cloud SQL (via VPC Connector)
 
-- Create a public zone in Cloud DNS manually from the GCP console for eashanroy.me  
+### DevOps & Automation
+- **Version Control:** Git, GitHub
+- **CI/CD:** GitHub Actions
+- **Secrets Management:** GitHub Secrets
+- **Service Management:** systemd
+- **Process Management:** Non-root user execution
 
+## 🔒 Security Features
 
-- Configure Namecheap to use custom name servers provided by GCP  
+- **Authentication:** Basic Auth for API endpoints
+- **Password Security:** Bcrypt hashing
+- **Database Isolation:** Private subnet, no internet exposure
+- **Least Privilege:** Dedicated service accounts with minimal IAM roles
+- **Non-root Execution:** Application runs as non-login user
+- **Network Security:** Firewall rules limiting traffic
+- **Secrets Management:** Encrypted GitHub organization secrets
+- **Email Verification:** Time-bound tokens for account activation
 
+## 📦 Deployment
 
-- Verified name server setup with command: 
+The application follows a fully automated deployment workflow:
 
+1. **Code Push:** Developer pushes code to feature branch
+2. **PR Creation:** Pull request raised to main branch
+3. **Automated Testing:** CI pipeline runs tests and validations
+4. **Code Review:** Manual review process
+5. **Merge:** PR merged to main branch
+6. **Image Build:** Packer automatically builds new machine image
+7. **Instance Template:** New template version created
+8. **Rolling Update:** Managed Instance Group updated with zero downtime
+9. **Health Checks:** New instances validated before old ones terminated
+10. **Complete:** New version serving production traffic
+
+## 🌐 Access
+
+- **Domain:** eashanroy.me
+- **API Base URL:** http://eashanroy.me:8081
+- **Health Check:** http://eashanroy.me:8081/healthz
+- **User API:** http://eashanroy.me:8081/v1/user
+
+## 📝 Development Setup
+
+### Prerequisites
+- JDK 17
+- Maven
+- PostgreSQL 14+
+- Git
+
+### Local Development
+
+**Database Setup:**
+```bash
+# Start PostgreSQL (Windows)
+net start postgresql-x64-16
+
+# Stop PostgreSQL (Windows)
+net stop postgresql-x64-16
 ```
-dig NS eashanroy.me
-```  
 
-- Handled via Terraform (repo: 'tf-gcp-infra')  
+**Application Configuration:**
+Create `src/main/resources/application.properties` with database configuration.
 
--- Added/updated A record to the Cloud DNS zone so that domain [eashanroy.me] points to public IP of VM instance  
--- Created service account for VM with IAM roles 'Logging Admin' and 'Monitoring Metric Writer' for the Ops agent (to be installed) to collect and send logs to Google Log Explorer  
+**Build & Run:**
+```bash
+# Build
+mvn clean install
 
+# Run
+mvn spring-boot:run
+```
 
-- Updated Packer template with following steps:  
+**Testing:**
+```bash
+# Run all tests
+mvn test
 
--- Shell provisioner to create log directory and set ownership so that application can write logs to it  
--- Shell provisioner to install Ops Agent for collecting VM logs and sending them to GCP Cloud Logging  
--- File provisioner to copy Ops agent configuration file to Packer image  
--- Shell provisioner to move Ops config file to /etc//google-cloud-ops-agent/config.yaml, enable and start google-cloud-ops-agent.service  
+# Run integration tests
+mvn verify
+```
 
-- Web Application Updates  
+## 🔄 Autoscaling & High Availability
 
--- Updated web application to write Structured Logs in JSON (used SLF4J with Logback)  
--- Created logback config file to use this directory '/var/log/webapp/webapp.log' to write logs  
--- All application log data is streamed to Google Cloud Observability and available in Log Explorer.  
+- **Instance Groups:** Managed Instance Groups with autoscaling policies
+- **Load Balancer:** Application Load Balancer for traffic distribution
+- **Health Checks:** Regular health monitoring for instance viability
+- **Rolling Updates:** Zero-downtime deployments with progressive rollout
+- **Auto-healing:** Automatic instance replacement on health check failures
 
-### Assignment 7  
+## 📂 Repository Structure
 
-Objective: When POST call is made to the web application to create a new user, the web application will publish a message to a Pub/Sub topic with the email id of the user. The Pub/Sub will trigger an associated CloudFunction which will use Mailgun's API to send an email verification link to the user. This link if clicked by the user within 2 minutes, the user's email will be verified, else not. All the subsequent GET/PUT calls will check if the user is a verified user or not. If yes, only then they will be able to make the API calls. 
+This project is organized across three repositories:
 
-- Handled via Terraform (repo: 'tf-gcp-infra')  
+**Main Application Repository** (Current)
+```
+webapp/
+├── src/
+│   ├── main/
+│   │   ├── java/               # Spring Boot application code
+│   │   └── resources/          # Configuration files
+│   └── test/                   # Integration tests
+├── packer/                     # Packer templates
+├── .github/
+│   └── workflows/              # CI/CD pipeline definitions
+└── pom.xml                     # Maven configuration
+```
 
--- Provisioned Cloud Function, Pub/Sub, VPC Connector (for cloud function to interact with the Cloud SQL Postgres db), service account for the Cloud Function with necessary IAM role bindings  
+**Infrastructure Repository** → [tf-gcp-infra](https://github.com/eashanroy7/tf-gcp-infra)
+- Terraform configurations for all GCP infrastructure
+- Network, compute, database, and security resources
+- Load balancer and autoscaling configurations
+- DNS and SSL certificate management
 
-- Web Application Updates 
+**Serverless Repository** → [serverless](https://github.com/eashanroy7/serverless)
+- Google Cloud Function code (Java)
+- Email verification logic
+- Pub/Sub event handlers
+- Mailgun API integration
 
--- Publishes a message to Pub/Sub topic when a new user account is created. The payload (message) is in JSON  
--- Once the message is published to Pub/Sub and Cloud function is triggered and verification link is sent to user, and user clicks that link, a new REST API endpoint in the web application ('/verify') is hit which checks if the link is clicked by user within 2 minutes. If yes, then marks the user as 'verified'  
--- All API calls from user account that has not been verified are blocked until the user completes the verification  
+## 🎯 Project Highlights
 
-- Serverless  
+- **Production-Ready:** Enterprise-grade architecture with security best practices
+- **Fully Automated:** Zero-touch deployment from code commit to production
+- **Cloud-Native:** Leverages managed services for scalability and reliability
+- **Observable:** Comprehensive logging and monitoring for operational excellence
+- **Scalable:** Auto-scaling infrastructure handles variable load
+- **Secure:** Multiple layers of security from network to application
+- **Event-Driven:** Serverless functions for asynchronous workflows
+- **Infrastructure as Code:** 100% reproducible infrastructure
 
--- Created new GitHub repo to store the serverless code of Cloud Function (used Java)  
--- The Cloud Function will do the following:  
+---
 
-1. Receive the base64 encoded message (containing email id of the user) from the Pub/Sub topic  
-2. Decode the message, deserialize it, insert a verification token in the cloudsql db associated with the email id of the user, and also add a timer of 2 minutes  
-3. Send mail to the user using mailgun's api that contains the verification url. When user clicks the link, it redirects them to the '/verify' endpoint of the web application   
-
-### Assignment 8  
-
-- Setup Autoscaling and Application Load balancer for the web application  
-
-### Assignment 9  
-
-Updated the Packer build workflow to include these steps:  
-
-- Created a new Instance Template version with the latest machine image id for the managed instance group.  
-- Configured the managed instance group to use this new template using gcloud cli.  
-- Issued command to the managed instance group to start a basic rolling update using gcloud cli.  
-- GitHub Actions workflow waits for managed instance group refresh to complete before exiting. The status of GitHub Actions workflow matches the status of instance refresh command.
-
-
+**Note:** This project demonstrates proficiency in cloud-native application development, DevOps practices, infrastructure automation, and modern software engineering principles.
