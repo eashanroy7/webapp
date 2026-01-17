@@ -2,6 +2,8 @@
 
 A production-ready, cloud-native web application built with Spring Boot and deployed on Google Cloud Platform (GCP). This project demonstrates enterprise-grade architecture with automated CI/CD pipelines, infrastructure as code, autoscaling, and comprehensive observability.
 
+![Architecture Diagram](images/architecture-diagram.png)
+
 ## 🏗️ Architecture Overview
 
 This application implements a scalable, highly available cloud-native architecture including:
