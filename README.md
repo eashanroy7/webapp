@@ -19,6 +19,14 @@ This application implements a scalable, highly available cloud-native architectu
 - **Cloud Observability** with structured logging and monitoring
 - **Domain Management** with Cloud DNS
 
+## Repositories  
+
+- [**WebApp**](https://github.com/eashanroy7/webapp): Spring Boot-based RESTful service for user management with PostgreSQL.
+
+- [**Terraform Infrastructure (tf-gcp-infra)**](https://github.com/eashanroy7/tf-gcp-infra): Terraform code to provision and manage the GCP infrastructure.
+
+- [**Serverless**](https://github.com/eashanroy7/serverless): Google Cloud Functions for event-driven processes like email verification.
+
 ## ✨ Features
 
 ### Health Monitoring & Database Connectivity
